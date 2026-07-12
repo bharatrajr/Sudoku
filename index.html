@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>సుడొకు · Sudoku</title>
+<meta name="theme-color" content="#D4502B">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+Tammudu+2:wght@500;600;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#FBF7EF;
+  --panel:#FFE9DD;
+  --grid:#D4502B;
+  --print:#C63D1B;
+  --ink:#1B3C8F;
+  --ink-soft:#e9eef9;
+  --text:#2B2620;
+  --muted:#8a7f72;
+  --wrong:#B00020;
+  --good:#1a7a3c;
+  --cell:#FFFDF8;
+  --peer:#FBEEE4;
+  --same:#FFE3B8;
+  --sel:#FFD08A;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+html{height:auto;overflow-y:auto}
+body{
+  background:var(--paper);
+  background-image:repeating-linear-gradient(0deg,rgba(180,160,140,.05) 0 1px,transparent 1px 22px),
+                   repeating-linear-gradient(90deg,rgba(180,160,140,.05) 0 1px,transparent 1px 22px);
+  color:var(--text);
+  font-family:'Baloo Tammudu 2',system-ui,sans-serif;
+  min-height:100vh;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  touch-action:pan-y;
+  display:flex;flex-direction:column;align-items:center;
+  padding:6px 10px calc(10px + env(safe-area-inset-bottom));
+  user-select:none;-webkit-user-select:none;
+}
+.app{width:100%;max-width:520px;display:flex;flex-direction:column;gap:8px}
+
+/* ---------- header ---------- */
+header{
+  background:var(--panel);
+  border-radius:18px 18px 6px 6px;
+  padding:10px 16px 6px;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  border-bottom:3px solid var(--grid);
+}
+.title{line-height:1}
+.title .te{font-size:34px;font-weight:700;color:var(--grid);letter-spacing:.5px}
+.title .en{font-size:14px;color:var(--muted);margin-top:-6px;letter-spacing:2px;text-transform:uppercase}
+.head-right{text-align:right}
+#diffLabel{font-size:18px;font-weight:600;color:var(--print)}
+#timer{font-size:16px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* ---------- grid ---------- */
+.board-wrap{position:relative;display:flex;justify-content:center}
+#board{
+  display:grid;
+  grid-template-columns:repeat(9,1fr);
+  grid-template-rows:repeat(9,1fr);   /* force equal rows — never stretch */
+  width:100%;max-width:520px;
+  aspect-ratio:1;
+  background:var(--cell);
+  border:4px solid var(--grid);border-radius:10px;
+  overflow:hidden;
+  box-shadow:0 2px 10px rgba(120,60,20,.12);
+}
+.cell{
+  position:relative;
+  min-height:0;min-width:0;          /* let grid tracks control size */
+  line-height:1;
+  overflow:hidden;
+  border-right:1px solid #EFB9A4;border-bottom:1px solid #EFB9A4;
+  display:flex;align-items:center;justify-content:center;
+  font-size:clamp(20px,6.5vmin,42px);
+  cursor:pointer;
+  transition:background .12s;
+}
+.cell:nth-child(9n){border-right:none}
+.cell.b-r{border-right:3px solid var(--grid)}
+.cell.b-b{border-bottom:3px solid var(--grid)}
+.cell.given{font-weight:600;color:var(--print)}
+.cell.user{
+  font-family:'Caveat',cursive;font-weight:700;color:var(--ink);
+  font-size:clamp(30px,9vmin,52px);line-height:1;
+}
+.cell.wrong{color:var(--wrong)!important;background:#ffe5e8}
+.cell.peer{background:var(--peer)}
+.cell.same{background:var(--same)}
+.cell.sel{background:var(--sel);box-shadow:inset 0 0 0 3px var(--ink)}
+.cell:focus-visible{outline:3px solid var(--ink);outline-offset:-3px}
+.notes{
+  position:absolute;inset:1px;display:grid;
+  grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+  font-family:'Baloo Tammudu 2',sans-serif;
+  font-size:clamp(9px,2.4vmin,14px);color:#7d7368;font-weight:600;
+}
+.notes span{display:flex;align-items:center;justify-content:center}
+
+/* ---------- toolbar ---------- */
+.toolbar{display:flex;gap:8px}
+.tool{
+  flex:1;min-height:64px;
+  background:#fff;border:2px solid #e6d8c8;border-radius:14px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;
+  font-family:inherit;font-size:15px;font-weight:600;color:var(--text);
+  cursor:pointer;padding:6px 2px 2px;
+  transition:transform .08s, background .12s;
+}
+.tool:active{transform:scale(.95)}
+.tool .ic{font-size:22px;line-height:1.1}
+.tool.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.tool[disabled]{opacity:.4;pointer-events:none}
+.badge{
+  position:absolute;top:-6px;right:-6px;background:var(--grid);color:#fff;
+  font-size:12px;border-radius:10px;padding:1px 6px;font-weight:700;
+}
+
+/* ---------- number pad ---------- */
+.pad{display:grid;grid-template-columns:repeat(9,1fr);gap:6px}
+.num{
+  aspect-ratio:.78;min-height:58px;
+  background:#fff;border:2px solid #d9c9b6;border-radius:12px;
+  font-family:'Baloo Tammudu 2',sans-serif;
+  font-size:clamp(26px,7vmin,38px);font-weight:700;color:var(--ink);
+  cursor:pointer;position:relative;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;
+  transition:transform .08s;
+  padding-top:6px;
+}
+.num:active{transform:scale(.92)}
+.num .left{font-size:12px;color:var(--muted);font-weight:600;margin-top:-2px}
+.num.done{opacity:.28;pointer-events:none}
+@media (min-width:480px){.num{min-height:64px}}
+
+/* short screens: shrink chrome so the board stays big */
+@media (max-height:720px){
+  .title .te{font-size:26px}
+  .title .en{font-size:12px}
+  header{padding:6px 14px 2px}
+  .tool{min-height:52px;font-size:13px}
+  .tool .ic{font-size:18px}
+  .num{min-height:46px;font-size:clamp(22px,6vmin,32px)}
+  .num .left{font-size:10px}
+  .foot{font-size:12px}
+}
+@media (max-height:600px){
+  .foot span{display:none}
+}
+
+/* ---------- footer ---------- */
+.foot{
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:14px;color:var(--muted);padding:0 4px;
+}
+.foot button{
+  background:none;border:none;font-family:inherit;font-size:15px;font-weight:600;
+  color:var(--print);cursor:pointer;text-decoration:underline;padding:8px;
+}
+
+/* ---------- overlays ---------- */
+.overlay{
+  position:fixed;inset:0;background:rgba(43,38,32,.55);
+  display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;
+}
+.sheet{
+  background:var(--paper);border-radius:22px;padding:26px 22px;
+  width:100%;max-width:380px;text-align:center;
+  border-top:6px solid var(--grid);
+  box-shadow:0 12px 40px rgba(0,0,0,.3);
+}
+.sheet h2{margin:0 0 4px;font-size:30px;color:var(--grid)}
+.sheet p{margin:0 0 18px;font-size:16px;color:var(--muted)}
+.diff-btn{
+  display:flex;justify-content:space-between;align-items:center;
+  width:100%;min-height:64px;margin-bottom:12px;padding:8px 20px 4px;
+  background:#fff;border:2px solid #d9c9b6;border-radius:14px;
+  font-family:inherit;cursor:pointer;transition:transform .08s;
+}
+.diff-btn:active{transform:scale(.96)}
+.diff-btn .te{font-size:22px;font-weight:700;color:var(--text)}
+.diff-btn .en{font-size:14px;color:var(--muted)}
+.diff-btn .dots{color:var(--grid);font-size:18px;letter-spacing:3px}
+.win h2{font-size:40px}
+.win .stats{font-size:20px;margin-bottom:20px}
+.big-btn{
+  width:100%;min-height:60px;border:none;border-radius:14px;
+  background:var(--ink);color:#fff;font-family:inherit;
+  font-size:20px;font-weight:700;cursor:pointer;padding-top:6px;
+}
+.link-btn{background:none;border:none;color:var(--muted);font-family:inherit;font-size:16px;margin-top:12px;cursor:pointer;text-decoration:underline;padding:10px}
+.hidden{display:none!important}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.pop{animation:pop .35s ease}
+@keyframes pop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="title">
+      <div class="te">సుడొకు</div>
+      <div class="en">Sudoku</div>
+    </div>
+    <div class="head-right">
+      <div id="diffLabel">సులభం</div>
+      <div id="timer">0:00</div>
+    </div>
+  </header>
+
+  <div class="board-wrap">
+    <div id="board" role="grid" aria-label="Sudoku board"></div>
+  </div>
+
+  <div class="toolbar">
+    <button class="tool" id="btnUndo" aria-label="Undo"><span class="ic">↩️</span>వెనక్కి<small style="color:inherit;opacity:.7">Undo</small></button>
+    <button class="tool" id="btnErase" aria-label="Erase"><span class="ic">🧽</span>చెరిపేయి<small style="color:inherit;opacity:.7">Erase</small></button>
+    <button class="tool" id="btnNotes" aria-label="Notes" style="position:relative"><span class="ic">✏️</span>నోట్స్<small style="color:inherit;opacity:.7">Notes</small></button>
+    <button class="tool" id="btnHint" aria-label="Hint" style="position:relative"><span class="ic">💡</span>సూచన<small style="color:inherit;opacity:.7">Hint</small><span class="badge" id="hintCount">3</span></button>
+    <button class="tool on" id="btnCheck" aria-label="Show mistakes"><span class="ic">✔️</span>తప్పులు<small style="color:inherit;opacity:.7">Mistakes</small></button>
+  </div>
+
+  <div class="pad" id="pad"></div>
+
+  <div class="foot">
+    <span>✒️ మీ జవాబులు పెన్నుతో రాసినట్టు కనిపిస్తాయి</span>
+    <button id="btnNew">కొత్త ఆట · New</button>
+  </div>
+</div>
+
+<!-- difficulty picker -->
+<div class="overlay" id="pickOverlay">
+  <div class="sheet pop">
+    <h2>సుడొకు</h2>
+    <p>ఆట స్థాయిని ఎంచుకోండి · Choose a level</p>
+    <button class="diff-btn" data-d="easy"><span><span class="te">సులభం</span> <span class="en">Easy</span></span><span class="dots">●○○</span></button>
+    <button class="diff-btn" data-d="medium"><span><span class="te">మధ్యస్థం</span> <span class="en">Medium</span></span><span class="dots">●●○</span></button>
+    <button class="diff-btn" data-d="hard"><span><span class="te">కఠినం</span> <span class="en">Hard</span></span><span class="dots">●●●</span></button>
+    <button class="link-btn hidden" id="btnResume">కొనసాగించు · Continue saved game</button>
+  </div>
+</div>
+
+<!-- win -->
+<div class="overlay hidden" id="winOverlay">
+  <div class="sheet win pop">
+    <h2>🎉 శభాష్!</h2>
+    <p>Puzzle complete</p>
+    <div class="stats" id="winStats"></div>
+    <button class="big-btn" id="btnAgain">మరో ఆట ఆడండి · Play again</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ================= fit board to screen (works everywhere) ================= */
+function fitBoard(){
+  const b = document.getElementById('board');
+  const appW = document.querySelector('.app').clientWidth;
+  // height used by everything except the board
+  let used = 0;
+  document.querySelectorAll('header,.toolbar,.pad,.foot').forEach(el=>{
+    used += el.offsetHeight;
+  });
+  used += 60; // gaps + body padding
+  const avail = window.innerHeight - used;
+  const size = Math.max(270, Math.min(appW, avail));
+  b.style.width = size + 'px';
+  b.style.height = size + 'px';   // explicit height: aspect-ratio not needed
+}
+window.addEventListener('resize', fitBoard);
+window.addEventListener('orientationchange', ()=>setTimeout(fitBoard,150));
+window.addEventListener('load', fitBoard);
+
+/* ================= PWA: service worker ================= */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  });
+}
+
+/* ================= sudoku engine ================= */
+const rnd = n => Math.floor(Math.random()*n);
+const shuffle = a => {for(let i=a.length-1;i>0;i--){const j=rnd(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;};
+
+function valid(g,i,v){
+  const r=(i/9)|0, c=i%9;
+  for(let k=0;k<9;k++){ if(g[r*9+k]===v||g[k*9+c]===v) return false; }
+  const br=r-r%3, bc=c-c%3;
+  for(let dr=0;dr<3;dr++)for(let dc=0;dc<3;dc++)
+    if(g[(br+dr)*9+bc+dc]===v) return false;
+  return true;
+}
+function fill(g,i=0){
+  if(i===81) return true;
+  if(g[i]) return fill(g,i+1);
+  for(const v of shuffle([1,2,3,4,5,6,7,8,9])){
+    if(valid(g,i,v)){ g[i]=v; if(fill(g,i+1)) return true; g[i]=0; }
+  }
+  return false;
+}
+function countSolutions(g,limit=2){
+  let count=0;
+  (function solve(){
+    if(count>=limit) return;
+    let i=g.indexOf(0);
+    if(i===-1){ count++; return; }
+    for(let v=1;v<=9;v++){
+      if(valid(g,i,v)){ g[i]=v; solve(); g[i]=0; if(count>=limit) return; }
+    }
+  })();
+  return count;
+}
+function makePuzzle(clues){
+  const sol = new Array(81).fill(0); fill(sol);
+  const puz = sol.slice();
+  const order = shuffle([...Array(81).keys()]);
+  let remaining = 81;
+  for(const i of order){
+    if(remaining <= clues) break;
+    const keep = puz[i]; puz[i]=0;
+    const test = puz.slice();
+    if(countSolutions(test)!==1){ puz[i]=keep; }
+    else remaining--;
+  }
+  return {puz, sol};
+}
+const CLUES = {easy:42, medium:34, hard:28};
+const DIFF_TE = {easy:'సులభం', medium:'మధ్యస్థం', hard:'కఠినం'};
+
+/* ================= state ================= */
+const S = {
+  puz:[], sol:[], grid:[], given:[], notes:[],
+  sel:-1, notesMode:false, showMistakes:true,
+  undo:[], hints:3, diff:'easy', seconds:0, done:false
+};
+let tick = null;
+
+const $ = id => document.getElementById(id);
+const board = $('board'), pad = $('pad');
+const cells = [];
+
+/* ================= build DOM ================= */
+for(let i=0;i<81;i++){
+  const d = document.createElement('div');
+  d.className='cell'; d.tabIndex=0;
+  const c=i%9, r=(i/9)|0;
+  if(c===2||c===5) d.classList.add('b-r');
+  if(r===2||r===5) d.classList.add('b-b');
+  d.addEventListener('click',()=>select(i));
+  board.appendChild(d); cells.push(d);
+}
+const numBtns=[];
+for(let v=1;v<=9;v++){
+  const b=document.createElement('button');
+  b.className='num'; b.innerHTML=`${v}<span class="left" data-l></span>`;
+  b.addEventListener('click',()=>input(v));
+  pad.appendChild(b); numBtns.push(b);
+}
+
+/* ================= game flow ================= */
+function newGame(diff){
+  S.diff=diff;
+  const {puz,sol}=makePuzzle(CLUES[diff]);
+  S.puz=puz; S.sol=sol; S.grid=puz.slice();
+  S.given=puz.map(v=>v!==0);
+  S.notes=Array.from({length:81},()=>new Set());
+  S.undo=[]; S.sel=-1; S.hints=3; S.seconds=0; S.done=false;
+  $('diffLabel').textContent=DIFF_TE[diff];
+  $('hintCount').textContent=S.hints;
+  $('pickOverlay').classList.add('hidden');
+  $('winOverlay').classList.add('hidden');
+  startTimer(); render(); save();
+}
+function startTimer(){
+  clearInterval(tick);
+  tick=setInterval(()=>{ if(!S.done){ S.seconds++; $('timer').textContent=fmt(S.seconds); if(S.seconds%15===0) save(); } },1000);
+  $('timer').textContent=fmt(S.seconds);
+}
+const fmt = s => `${(s/60)|0}:${String(s%60).padStart(2,'0')}`;
+
+function select(i){ S.sel=i; render(); }
+
+function input(v){
+  const i=S.sel;
+  if(i<0||S.given[i]||S.done) return;
+  if(S.notesMode){
+    pushUndo(i);
+    S.notes[i].has(v)?S.notes[i].delete(v):S.notes[i].add(v);
+  }else{
+    if(S.grid[i]===v) return;
+    pushUndo(i);
+    S.grid[i]=v; S.notes[i].clear();
+    clearPeerNotes(i,v);
+  }
+  render(); save(); checkWin();
+}
+function erase(){
+  const i=S.sel;
+  if(i<0||S.given[i]||S.done) return;
+  if(!S.grid[i]&&!S.notes[i].size) return;
+  pushUndo(i);
+  S.grid[i]=0; S.notes[i].clear();
+  render(); save();
+}
+function pushUndo(i){
+  S.undo.push({i, v:S.grid[i], n:[...S.notes[i]]});
+  if(S.undo.length>200) S.undo.shift();
+}
+function undo(){
+  const u=S.undo.pop(); if(!u) return;
+  S.grid[u.i]=u.v; S.notes[u.i]=new Set(u.n);
+  S.sel=u.i; render(); save();
+}
+function clearPeerNotes(i,v){
+  const r=(i/9)|0,c=i%9,br=r-r%3,bc=c-c%3;
+  for(let k=0;k<9;k++){
+    S.notes[r*9+k].delete(v); S.notes[k*9+c].delete(v);
+    S.notes[(br+(k/3|0))*9+bc+k%3].delete(v);
+  }
+}
+function hint(){
+  if(S.hints<=0||S.done) return;
+  // prefer selected empty/wrong cell, else random
+  let i=S.sel;
+  if(i<0||S.given[i]||S.grid[i]===S.sol[i]){
+    const opts=[];
+    for(let k=0;k<81;k++) if(!S.given[k]&&S.grid[k]!==S.sol[k]) opts.push(k);
+    if(!opts.length) return;
+    i=opts[rnd(opts.length)];
+  }
+  pushUndo(i);
+  S.grid[i]=S.sol[i]; S.notes[i].clear(); clearPeerNotes(i,S.sol[i]);
+  S.sel=i; S.hints--; $('hintCount').textContent=S.hints;
+  if(S.hints===0) $('btnHint').setAttribute('disabled','');
+  render(); save(); checkWin();
+}
+function checkWin(){
+  for(let i=0;i<81;i++) if(S.grid[i]!==S.sol[i]) return;
+  S.done=true; clearInterval(tick); save();
+  $('winStats').innerHTML=`${DIFF_TE[S.diff]} · ⏱️ ${fmt(S.seconds)}`;
+  $('winOverlay').classList.remove('hidden');
+}
+
+/* ================= render ================= */
+function render(){
+  const selVal = S.sel>=0 ? S.grid[S.sel] : 0;
+  const sr=S.sel>=0?(S.sel/9)|0:-1, sc=S.sel>=0?S.sel%9:-1;
+  const sbr=sr-sr%3, sbc=sc-sc%3;
+  const counts=new Array(10).fill(0);
+  for(const v of S.grid) counts[v]++;
+
+  for(let i=0;i<81;i++){
+    const d=cells[i], v=S.grid[i];
+    const r=(i/9)|0,c=i%9;
+    d.classList.remove('sel','peer','same','wrong','given','user');
+    if(v){
+      d.textContent=v;
+      d.classList.add(S.given[i]?'given':'user');
+      if(S.showMistakes&&!S.given[i]&&v!==S.sol[i]) d.classList.add('wrong');
+    }else if(S.notes[i].size){
+      d.innerHTML='<div class="notes">'+[1,2,3,4,5,6,7,8,9].map(n=>`<span>${S.notes[i].has(n)?n:''}</span>`).join('')+'</div>';
+    }else d.textContent='';
+    if(S.sel===i) d.classList.add('sel');
+    else if(S.sel>=0){
+      if(r===sr||c===sc||(r-r%3===sbr&&c-c%3===sbc)) d.classList.add('peer');
+      if(selVal&&v===selVal) d.classList.add('same');
+    }
+  }
+  numBtns.forEach((b,idx)=>{
+    const v=idx+1, left=9-counts[v];
+    b.querySelector('[data-l]').textContent=left>0?left:'';
+    b.classList.toggle('done',left<=0);
+  });
+}
+
+/* ================= persistence ================= */
+const KEY='sudoku60_v1';
+function save(){
+  try{
+    localStorage.setItem(KEY,JSON.stringify({
+      puz:S.puz, sol:S.sol, grid:S.grid, given:S.given,
+      notes:S.notes.map(s=>[...s]), diff:S.diff,
+      seconds:S.seconds, hints:S.hints, done:S.done
+    }));
+  }catch(e){}
+}
+function load(){
+  try{
+    const d=JSON.parse(localStorage.getItem(KEY));
+    if(!d||!d.grid||d.done) return false;
+    Object.assign(S,{puz:d.puz,sol:d.sol,grid:d.grid,given:d.given,
+      diff:d.diff,seconds:d.seconds,hints:d.hints,done:false,sel:-1,undo:[]});
+    S.notes=d.notes.map(a=>new Set(a));
+    return true;
+  }catch(e){ return false; }
+}
+
+/* ================= wire up ================= */
+$('btnUndo').onclick=undo;
+$('btnErase').onclick=erase;
+$('btnNotes').onclick=()=>{S.notesMode=!S.notesMode;$('btnNotes').classList.toggle('on',S.notesMode);};
+$('btnHint').onclick=hint;
+$('btnCheck').onclick=()=>{S.showMistakes=!S.showMistakes;$('btnCheck').classList.toggle('on',S.showMistakes);render();};
+$('btnNew').onclick=()=>{$('pickOverlay').classList.remove('hidden');$('btnResume').classList.toggle('hidden',!S.grid.length||S.done);};
+$('btnResume').onclick=()=>{$('pickOverlay').classList.add('hidden');};
+$('btnAgain').onclick=()=>{$('winOverlay').classList.add('hidden');$('pickOverlay').classList.remove('hidden');$('btnResume').classList.add('hidden');};
+document.querySelectorAll('.diff-btn').forEach(b=>b.onclick=()=>newGame(b.dataset.d));
+
+document.addEventListener('keydown',e=>{
+  if(e.key>='1'&&e.key<='9') input(+e.key);
+  else if(e.key==='Backspace'||e.key==='Delete') erase();
+  else if(e.key.startsWith('Arrow')&&S.sel>=0){
+    e.preventDefault();
+    let r=(S.sel/9)|0,c=S.sel%9;
+    if(e.key==='ArrowUp')r=Math.max(0,r-1);
+    if(e.key==='ArrowDown')r=Math.min(8,r+1);
+    if(e.key==='ArrowLeft')c=Math.max(0,c-1);
+    if(e.key==='ArrowRight')c=Math.min(8,c+1);
+    select(r*9+c);
+  }
+});
+
+/* ================= boot ================= */
+fitBoard();
+if(load()){
+  $('diffLabel').textContent=DIFF_TE[S.diff];
+  $('hintCount').textContent=S.hints;
+  if(S.hints===0)$('btnHint').setAttribute('disabled','');
+  $('pickOverlay').classList.add('hidden');
+  startTimer(); render();
+}else{
+  $('pickOverlay').classList.remove('hidden');
+}
+</script>
+</body>
+</html>
